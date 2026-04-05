@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Density & Buoyancy Explorer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #e8f4fd;
+    min-height: 100vh;
+    color: #1a1a2e;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0077b6, #023e8a);
+    color: white;
+    padding: 18px 24px;
+    text-align: center;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.2);
+  }
+  header h1 { font-size: 1.8rem; letter-spacing: 0.5px; }
+  header p { opacity: 0.85; margin-top: 4px; font-size: 0.95rem; }
+
+  .main {
+    display: flex;
+    gap: 16px;
+    padding: 16px;
+    max-width: 1150px;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+
+  /* ─── PALETTE ─── */
+  .palette {
+    width: 200px;
+    flex-shrink: 0;
+    background: white;
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+  .palette h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+    margin-bottom: 10px;
+  }
+
+  .obj-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 10px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    cursor: grab;
+    border: 2px solid transparent;
+    background: #f8f9fa;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .obj-card:hover {
+    border-color: #0077b6;
+    background: #e8f4fd;
+    transform: translateX(3px);
+  }
+  .obj-card:active { cursor: grabbing; opacity: 0.7; }
+  .obj-card.dragging { opacity: 0.4; }
+
+  .obj-icon {
+    font-size: 1.6rem;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .obj-details { flex: 1; min-width: 0; }
+  .obj-name { font-weight: 600; font-size: 0.85rem; }
+  .obj-density {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 2px;
+  }
+  .obj-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 20px;
+    font-weight: 700;
+    margin-top: 3px;
+    display: inline-block;
+  }
+  .floats { background: #d4edda; color: #155724; }
+  .sinks  { background: #f8d7da; color: #721c24; }
+
+  .divider {
+    height: 1px;
+    background: #eee;
+    margin: 10px 0;
+  }
+
+  /* Custom object */
+  .custom-section h3 { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .custom-section input {
+    width: 100%;
+    padding: 7px 10px;
+    border: 1.5px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    margin-bottom: 6px;
+    transition: border-color 0.2s;
+  }
+  .custom-section input:focus { outline: none; border-color: #0077b6; }
+  .custom-section button {
+    width: 100%;
+    padding: 8px;
+    background: #0077b6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .custom-section button:hover { background: #005f92; }
+
+  /* ─── TANK AREA ─── */
+  .tank-area { flex: 1; min-width: 0; }
+
+  .tank-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .tank-header h2 { font-size: 1rem; color: #333; }
+
+  .controls { display: flex; gap: 8px; }
+  .btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+  .btn-outline {
+    background: white;
+    border: 1.5px solid #ccc;
+    color: #555;
+  }
+  .btn-outline:hover { border-color: #0077b6; color: #0077b6; }
+  .btn-danger { background: #fee; border: 1.5px solid #f99; color: #c33; }
+  .btn-danger:hover { background: #fdd; }
+
+  .tank-wrapper {
+    background: white;
+    border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  }
+
+  #tank {
+    position: relative;
+    width: 100%;
+    height: 370px;
+    border: 3px solid #0077b6;
+    border-radius: 4px 4px 10px 10px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #caf0f8 0%, #90e0ef 28%, #90e0ef 28.1%);
+    cursor: default;
+  }
+
+  /* Water fill */
+  .water-body {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 72%;
+    background: linear-gradient(180deg, rgba(0,119,182,0.45) 0%, rgba(0,119,182,0.7) 100%);
+    pointer-events: none;
+  }
+
+  /* Wave line at water surface */
+  .water-surface {
+    position: absolute;
+    left: 0; right: 0;
+    top: 28%;
+    height: 6px;
+    background: rgba(144, 224, 239, 0.6);
+    pointer-events: none;
+    z-index: 2;
+  }
+  .water-surface::before {
+    content: '';
+    position: absolute;
+    top: -3px; left: 0; right: 0; height: 6px;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0px, transparent 20px,
+      rgba(255,255,255,0.5) 20px, rgba(255,255,255,0.5) 40px
+    );
+    animation: wave 2s linear infinite;
+  }
+  @keyframes wave {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-40px); }
+  }
+
+  /* Water label */
+  .water-label {
+    position: absolute;
+    right: 10px;
+    top: 32%;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.9);
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  /* Waterline marker */
+  .waterline-label {
+    position: absolute;
+    left: 6px;
+    top: calc(28% - 10px);
+    font-size: 0.7rem;
+    color: #0077b6;
+    font-weight: 700;
+    z-index: 5;
+    pointer-events: none;
+  }
+
+  /* Drop hint */
+  .drop-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    color: rgba(0,119,182,0.4);
+    pointer-events: none;
+    transition: opacity 0.3s;
+    z-index: 1;
+  }
+  .drop-hint .big { font-size: 2.5rem; }
+  .drop-hint p { font-size: 0.85rem; margin-top: 6px; font-weight: 500; }
+
+  #tank.drag-over {
+    border-color: #00b4d8;
+    background: linear-gradient(180deg, #ade8f4 0%, #90e0ef 28%, #90e0ef 28.1%);
+  }
+
+  /* ─── TANK OBJECTS ─── */
+  .tank-obj {
+    position: absolute;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: top 0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
+                left 0.3s ease,
+                box-shadow 0.2s;
+    z-index: 10;
+    border: 2px solid rgba(255,255,255,0.6);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    user-select: none;
+  }
+  .tank-obj:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    z-index: 20;
+  }
+  .tank-obj.selected {
+    border: 3px solid #ffd60a;
+    box-shadow: 0 0 0 3px rgba(255,214,10,0.4);
+  }
+  .tank-obj .t-emoji { font-size: 1.2rem; line-height: 1; }
+  .tank-obj .t-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    text-align: center;
+    margin-top: 2px;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tank-obj .t-density {
+    font-size: 0.58rem;
+    color: rgba(255,255,255,0.9);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+
+  /* Bubble animation for sinking objects */
+  @keyframes sink {
+    0% { transform: translateY(-30px); opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes float-bob {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-4px); }
+  }
+  .floating-anim { animation: float-bob 2.5s ease-in-out infinite; }
+
+  /* ─── INFO PANEL ─── */
+  .info-panel {
+    width: 240px;
+    flex-shrink: 0;
+  }
+  .info-card {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 12px;
+  }
+  .info-card h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 12px;
+  }
+
+  .info-placeholder {
+    text-align: center;
+    color: #bbb;
+    padding: 20px 0;
+  }
+  .info-placeholder .big { font-size: 2.5rem; }
+  .info-placeholder p { font-size: 0.82rem; margin-top: 6px; }
+
+  #info-content { display: none; }
+
+  .info-obj-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .info-obj-icon {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem;
+    flex-shrink: 0;
+  }
+  .info-obj-name { font-size: 1.1rem; font-weight: 700; }
+  .info-obj-desc { font-size: 0.78rem; color: #777; margin-top: 2px; }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 0.88rem;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: #666; }
+  .stat-value { font-weight: 700; color: #1a1a2e; }
+
+  .density-result {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    text-align: center;
+  }
+  .density-result .result-label { font-size: 0.78rem; color: #666; }
+  .density-result .result-value { font-size: 1.8rem; font-weight: 800; margin: 4px 0; }
+  .density-result .result-unit { font-size: 0.75rem; color: #888; }
+
+  .status-banner {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .status-float { background: #d4edda; color: #155724; }
+  .status-sink  { background: #f8d7da; color: #721c24; }
+  .status-neutral { background: #fff3cd; color: #856404; }
+
+  .submersion-bar-wrap {
+    margin-top: 10px;
+  }
+  .submersion-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .submersion-bar {
+    height: 14px;
+    background: #e8f4fd;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid #cce4f7;
+  }
+  .submersion-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0077b6, #00b4d8);
+    border-radius: 7px;
+    transition: width 0.6s ease;
+  }
+
+  /* Formula card */
+  .formula-card {
+    background: linear-gradient(135deg, #0077b6, #023e8a);
+    color: white;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  }
+  .formula-card h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    opacity: 0.8;
+    margin-bottom: 12px;
+  }
+  .formula-display {
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+  }
+  .formula-live {
+    font-size: 0.82rem;
+    opacity: 0.9;
+    line-height: 1.6;
+  }
+  .formula-live span {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #ade8f4;
+  }
+
+  /* Legend */
+  .legend {
+    background: white;
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 12px;
+  }
+  .legend h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 10px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; margin-bottom: 6px; color: #444; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ─── BOTTOM FORMULA BAR ─── */
+  .bottom-bar {
+    max-width: 1150px;
+    margin: 0 auto 20px;
+    padding: 0 16px;
+    display: flex;
+    gap: 12px;
+  }
+  .fact-card {
+    flex: 1;
+    background: white;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    border-left: 4px solid #0077b6;
+    font-size: 0.83rem;
+    color: #444;
+    line-height: 1.5;
+  }
+  .fact-card strong { color: #0077b6; display: block; margin-bottom: 4px; font-size: 0.85rem; }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(60px);
+    background: #333;
+    color: white;
+    padding: 10px 22px;
+    border-radius: 30px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌊 Density &amp; Buoyancy Explorer</h1>
+  <p>Drag objects into the water tank to see if they float or sink!</p>
+</header>
+
+<div class="main">
+
+  <!-- PALETTE -->
+  <div class="palette">
+    <h2>Objects</h2>
+    <div id="object-list"></div>
+
+    <div class="divider"></div>
+
+    <div class="custom-section">
+      <h3>Custom Object</h3>
+      <input type="text"   id="c-name"   placeholder="Name (e.g. Wax)" maxlength="16">
+      <input type="number" id="c-mass"   placeholder="Mass (g)" min="0.1" step="0.1">
+      <input type="number" id="c-volume" placeholder="Volume (cm³)" min="0.1" step="0.1">
+      <input type="text"   id="c-emoji"  placeholder="Emoji (optional)">
+      <button onclick="addCustomObject()">+ Add to Tank</button>
+    </div>
+  </div>
+
+  <!-- TANK AREA -->
+  <div class="tank-area">
+    <div class="tank-header">
+      <h2>🪣 Water Tank <small style="color:#999;font-size:0.75rem;">(water density = 1.0 g/cm³)</small></h2>
+      <div class="controls">
+        <button class="btn btn-outline" onclick="toggleLabels()">Toggle Labels</button>
+        <button class="btn btn-danger" onclick="clearTank()">Clear Tank</button>
+      </div>
+    </div>
+
+    <div class="tank-wrapper">
+      <div id="tank"
+           ondragover="onDragOver(event)"
+           ondragleave="onDragLeave(event)"
+           ondrop="onDrop(event)">
+        <div class="water-surface"></div>
+        <div class="water-body"></div>
+        <div class="water-label">H₂O</div>
+        <div class="waterline-label">— waterline</div>
+        <div class="drop-hint" id="drop-hint">
+          <div class="big">🫳</div>
+          <p>Drag an object here</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom fact cards -->
+    <div style="margin-top:12px;">
+      <div style="display:flex;gap:10px;">
+        <div class="fact-card">
+          <strong>🔢 Key Formula</strong>
+          Density = Mass ÷ Volume &nbsp;|&nbsp; Unit: g/cm³
+        </div>
+        <div class="fact-card">
+          <strong>🏊 Buoyancy Rule</strong>
+          Object floats if its density is <em>less than</em> the fluid's density (1.0 g/cm³ for water).
+        </div>
+        <div class="fact-card">
+          <strong>💡 Archimedes</strong>
+          A floating object sinks until it displaces a volume of water equal to its own weight.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INFO PANEL -->
+  <div class="info-panel">
+
+    <div class="info-card">
+      <h3>Object Inspector</h3>
+      <div id="info-placeholder" class="info-placeholder">
+        <div class="big">🔍</div>
+        <p>Drop an object or click one in the tank</p>
+      </div>
+      <div id="info-content">
+        <div class="info-obj-header">
+          <div class="info-obj-icon" id="info-icon"></div>
+          <div>
+            <div class="info-obj-name" id="info-name"></div>
+            <div class="info-obj-desc" id="info-desc"></div>
+          </div>
+        </div>
+        <div class="stat-row"><span class="stat-label">Mass</span><span class="stat-value" id="info-mass"></span></div>
+        <div class="stat-row"><span class="stat-label">Volume</span><span class="stat-value" id="info-volume"></span></div>
+        <div class="stat-row"><span class="stat-label">Fluid Density</span><span class="stat-value">1.0 g/cm³</span></div>
+        <div class="density-result" id="info-density-block">
+          <div class="result-label">Density</div>
+          <div class="result-value" id="info-density"></div>
+          <div class="result-unit">g/cm³</div>
+        </div>
+        <div class="status-banner" id="info-status"></div>
+        <div class="submersion-bar-wrap" id="info-sub-wrap">
+          <div class="submersion-label">
+            <span>% Submerged</span>
+            <span id="info-sub-pct"></span>
+          </div>
+          <div class="submersion-bar">
+            <div class="submersion-fill" id="info-sub-bar"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <h3>Legend</h3>
+      <div class="legend-row"><div class="legend-dot" style="background:#2dc653"></div> Density &lt; 1.0 → Floats</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#e63946"></div> Density ≥ 1.0 → Sinks</div>
+      <div class="legend-row"><div class="legend-dot" style="background:#ffd60a"></div> Selected object</div>
+    </div>
+
+    <div class="formula-card">
+      <h3>Live Calculation</h3>
+      <div class="formula-display">ρ = m ÷ V</div>
+      <div class="formula-live" id="formula-live">
+        Drop an object to see the calculation here.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────
+const WATER_DENSITY = 1.0;
+const WATER_LEVEL_PCT = 0.28; // from top (28% air, 72% water)
+
+const PRESET_OBJECTS = [
+  { id:'cork',    name:'Cork',       emoji:'🪵', mass:2.4,   volume:10,  color:'#c08040', desc:'Light tree bark' },
+  { id:'wood',    name:'Pine Wood',  emoji:'🌲', mass:30,    volume:50,  color:'#8B5E3C', desc:'Common wood' },
+  { id:'ice',     name:'Ice',        emoji:'🧊', mass:91.7,  volume:100, color:'#AEE4FF', desc:'Frozen water' },
+  { id:'plastic', name:'Plastic',    emoji:'🔵', mass:95,    volume:100, color:'#29B6F6', desc:'HDPE plastic' },
+  { id:'rubber',  name:'Rubber',     emoji:'⚫', mass:130,   volume:100, color:'#444',    desc:'Natural rubber' },
+  { id:'bone',    name:'Bone',       emoji:'🦴', mass:190,   volume:100, color:'#EEE8D5', desc:'Compact bone' },
+  { id:'aluminum',name:'Aluminum',   emoji:'🔩', mass:270,   volume:100, color:'#90A4AE', desc:'Lightweight metal' },
+  { id:'rock',    name:'Granite',    emoji:'🪨', mass:265,   volume:100, color:'#78909C', desc:'Common rock' },
+  { id:'steel',   name:'Steel',      emoji:'⚙️', mass:785,   volume:100, color:'#546E7A', desc:'Iron alloy' },
+  { id:'gold',    name:'Gold',       emoji:'🥇', mass:1932,  volume:100, color:'#FFD700', desc:'Precious metal' },
+];
+
+let tankObjects = [];
+let showLabels   = true;
+let draggedItem  = null;
+let selectedId   = null;
+let customCount  = 0;
+
+// ─── INIT ─────────────────────────────────────────────────────────
+function init() {
+  const list = document.getElementById('object-list');
+  PRESET_OBJECTS.forEach(obj => {
+    const density = obj.mass / obj.volume;
+    const floats  = density < WATER_DENSITY;
+    const card    = document.createElement('div');
+    card.className   = 'obj-card';
+    card.draggable   = true;
+    card.dataset.id  = obj.id;
+    card.innerHTML   = `
+      <div class="obj-icon" style="background:${obj.color}20;font-size:1.4rem">${obj.emoji}</div>
+      <div class="obj-details">
+        <div class="obj-name">${obj.name}</div>
+        <div class="obj-density">${density.toFixed(2)} g/cm³</div>
+        <span class="obj-badge ${floats?'floats':'sinks'}">${floats?'FLOATS':'SINKS'}</span>
+      </div>`;
+    card.addEventListener('dragstart', e => {
+      draggedItem = { ...obj, isPreset: true };
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    list.appendChild(card);
+  });
+}
+
+// ─── DRAG & DROP ──────────────────────────────────────────────────
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  document.getElementById('tank').classList.add('drag-over');
+}
+function onDragLeave() {
+  document.getElementById('tank').classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('tank').classList.remove('drag-over');
+  if (!draggedItem) return;
+
+  const tank   = document.getElementById('tank');
+  const rect   = tank.getBoundingClientRect();
+  const dropX  = e.clientX - rect.left;
+
+  addObjectToTank(draggedItem, dropX);
+  draggedItem = null;
+}
+
+// ─── TANK LOGIC ───────────────────────────────────────────────────
+function addObjectToTank(obj, dropX) {
+  const density  = obj.mass / obj.volume;
+  const floats   = density < WATER_DENSITY;
+  const fSub     = floats ? density / WATER_DENSITY : 1.0; // fraction submerged
+  const instanceId = `${obj.id}_${Date.now()}`;
+
+  // Size: proportional to volume, range 44–72px
+  const size = Math.min(72, Math.max(44, 44 + (obj.volume / 100) * 20));
+
+  const tank  = document.getElementById('tank');
+  const tankH = tank.clientHeight;
+  const tankW = tank.clientWidth;
+
+  // Horizontal: use drop position, clamped
+  const xPos = Math.min(Math.max(dropX - size/2, 6), tankW - size - 6);
+
+  // Vertical start (off top)
+  const startY = -size - 10;
+
+  // Vertical end
+  const waterLineY = tankH * WATER_LEVEL_PCT;
+  let endY;
+  if (floats) {
+    // top of object = waterline - (1 - fSub) * size
+    endY = waterLineY - (1 - fSub) * size;
+  } else {
+    endY = tankH - size - 8;
+  }
+
+  // Create element
+  const el = document.createElement('div');
+  el.className  = 'tank-obj';
+  el.id         = instanceId;
+  el.title      = `${obj.name} — ${density.toFixed(3)} g/cm³`;
+  el.style.cssText = `
+    width:${size}px; height:${size}px;
+    left:${xPos}px; top:${startY}px;
+    background:${obj.color};
+  `;
+  el.innerHTML = `
+    <span class="t-emoji">${obj.emoji||'📦'}</span>
+    <span class="t-label" style="display:${showLabels?'block':'none'}">${obj.name}</span>
+    <span class="t-density" style="display:${showLabels?'block':'none'}">${density.toFixed(2)}</span>
+  `;
+  el.addEventListener('click', () => selectTankObject(instanceId));
+
+  tank.appendChild(el);
+
+  // Animate drop
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.style.top = `${endY}px`;
+      if (floats) {
+        setTimeout(() => el.classList.add('floating-anim'), 850);
+      }
+    });
+  });
+
+  const record = { ...obj, instanceId, density, floats, fSub, size, xPos, endY };
+  tankObjects.push(record);
+
+  // Hide drop hint
+  document.getElementById('drop-hint').style.opacity = '0';
+
+  // Show info
+  setTimeout(() => selectTankObject(instanceId), 200);
+  showToast(`${obj.name} ${floats ? 'floats 🌊' : 'sinks ⬇️'} — density: ${density.toFixed(3)} g/cm³`);
+}
+
+function selectTankObject(instanceId) {
+  // Deselect previous
+  document.querySelectorAll('.tank-obj').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById(instanceId);
+  if (el) el.classList.add('selected');
+
+  selectedId = instanceId;
+  const obj  = tankObjects.find(o => o.instanceId === instanceId);
+  if (obj) showInfoPanel(obj);
+}
+
+// ─── INFO PANEL ───────────────────────────────────────────────────
+function showInfoPanel(obj) {
+  document.getElementById('info-placeholder').style.display = 'none';
+  document.getElementById('info-content').style.display     = 'block';
+
+  const density  = obj.density;
+  const floats   = obj.floats;
+  const fSubPct  = Math.min(100, (obj.fSub * 100)).toFixed(1);
+
+  document.getElementById('info-icon').style.background   = obj.color + '30';
+  document.getElementById('info-icon').textContent        = obj.emoji || '📦';
+  document.getElementById('info-name').textContent        = obj.name;
+  document.getElementById('info-desc').textContent        = obj.desc || 'Custom object';
+  document.getElementById('info-mass').textContent        = `${obj.mass} g`;
+  document.getElementById('info-volume').textContent      = `${obj.volume} cm³`;
+  document.getElementById('info-density').textContent     = density.toFixed(3);
+  document.getElementById('info-density-block').style.background = floats ? '#d4edda' : '#f8d7da';
+  document.getElementById('info-density').style.color    = floats ? '#155724' : '#721c24';
+
+  const statusEl = document.getElementById('info-status');
+  if (density === 1.0) {
+    statusEl.textContent  = '⚖️ Neutrally Buoyant';
+    statusEl.className    = 'status-banner status-neutral';
+  } else if (floats) {
+    statusEl.textContent  = `🌊 Floats! (${fSubPct}% submerged)`;
+    statusEl.className    = 'status-banner status-float';
+  } else {
+    statusEl.textContent  = '⬇️ Sinks to the bottom';
+    statusEl.className    = 'status-banner status-sink';
+  }
+
+  document.getElementById('info-sub-pct').textContent   = `${fSubPct}%`;
+  document.getElementById('info-sub-bar').style.width   = `${fSubPct}%`;
+
+  // Live formula
+  document.getElementById('formula-live').innerHTML = `
+    ρ = <span>${obj.mass} g</span> ÷ <span>${obj.volume} cm³</span><br>
+    ρ = <span>${density.toFixed(3)} g/cm³</span><br>
+    Water = <span>1.000 g/cm³</span><br>
+    ${density < 1 ? `${density.toFixed(3)} < 1.0 → <span style="color:#2dc653">FLOATS ✓</span>` :
+      density > 1 ? `${density.toFixed(3)} > 1.0 → <span style="color:#e63946">SINKS ✓</span>` :
+                    `${density.toFixed(3)} = 1.0 → <span style="color:#ffd60a">NEUTRAL</span>`}
+  `;
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────────
+function clearTank() {
+  const tank = document.getElementById('tank');
+  document.querySelectorAll('.tank-obj').forEach(el => el.remove());
+  tankObjects = [];
+  selectedId  = null;
+  document.getElementById('drop-hint').style.opacity = '1';
+  document.getElementById('info-placeholder').style.display = 'block';
+  document.getElementById('info-content').style.display     = 'none';
+  document.getElementById('formula-live').textContent = 'Drop an object to see the calculation here.';
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  document.querySelectorAll('.t-label, .t-density').forEach(el => {
+    el.style.display = showLabels ? 'block' : 'none';
+  });
+}
+
+function addCustomObject() {
+  const name   = document.getElementById('c-name').value.trim()   || `Object ${++customCount}`;
+  const mass   = parseFloat(document.getElementById('c-mass').value);
+  const volume = parseFloat(document.getElementById('c-volume').value);
+  const emoji  = document.getElementById('c-emoji').value.trim()  || '📦';
+
+  if (!mass || !volume || mass <= 0 || volume <= 0) {
+    showToast('⚠️ Please enter a valid mass and volume.');
+    return;
+  }
+
+  const hue   = Math.floor(Math.random() * 360);
+  const color = `hsl(${hue}, 60%, 55%)`;
+
+  const obj = { id: `custom_${Date.now()}`, name, emoji, mass, volume, color, desc: 'Custom object' };
+  addObjectToTank(obj, 200 + tankObjects.length * 40);
+
+  // Clear inputs
+  ['c-name','c-mass','c-volume','c-emoji'].forEach(id => document.getElementById(id).value = '');
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ─── KEYBOARD ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+    const el = document.getElementById(selectedId);
+    if (el) el.remove();
+    tankObjects = tankObjects.filter(o => o.instanceId !== selectedId);
+    selectedId = null;
+    if (tankObjects.length === 0) {
+      document.getElementById('drop-hint').style.opacity = '1';
+      document.getElementById('info-placeholder').style.display = 'block';
+      document.getElementById('info-content').style.display     = 'none';
+    }
+    showToast('Object removed.');
+  }
+});
+
+init();
+</script>
+</body>
+</html>
